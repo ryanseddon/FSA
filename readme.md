@@ -5,4 +5,4 @@ FSA.js
 
 Look at the source for now will update with some examples soon.
 
-[http://thecssninja.com/javascript/filesystem](This article uses an earlier version of FSA.js)
+[This article uses an earlier version of FSA.js](http://thecssninja.com/javascript/filesystem)
