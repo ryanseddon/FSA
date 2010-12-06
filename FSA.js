@@ -12,16 +12,20 @@ var FSA = FSA || {};
 (function(w,d) {
 	var fsys, root, fileReader;
 	
-	FSA.requestFSAccess = function(type,size) {
+	FSA.requestFSAccess = function(type,size) { // If type is a string will ignore it and fallback to temporary FS.
+		var re = /^(\[object Number\]|\[object Boolean\])$/i;
+		
 		if("requestFileSystem" in w) {
-			w.requestFileSystem( type, size /* ~5MB */, function(fs) {
-				fsys = fs;
-				root = fsys.root;
-			}, FSA.error);
+			if(re.test(typeCheck(type)) && typeCheck(size) === "[object Number]") {
+				w.requestFileSystem( type, size /* bytes */, function(fs) {
+					fsys = fs;
+					root = fsys.root;
+				}, errorHandler);
+			}
 		} else { // No filesystem access :(
 			alert("Unfortunately your browser doesn't yet support the File API: Directories and System specification");
 		}
-	}
+	};
 	
 	FSA.write2File = function(name,data,mimetype) {
 		var e = this || null;
@@ -35,7 +39,6 @@ var FSA = FSA || {};
 
 				writer.onwrite = function(e) {
 					console.log(name + ' written successfully to filesystem.');
-					FSA.getFile(name);
 				};
 
 				writer.onerror = function(e) {
@@ -48,36 +51,33 @@ var FSA = FSA || {};
 				writer.write(bb.getBlob(mimetype));
 
 			});
-		}, FSA.error );
+		}, errorHandler );
 	};
 	
 	FSA.getFile = function(name,callback) {
-		var isFunc = (typeof callback == "function");
-		
 		root.getFile(name, null, function(fileEntry) {
 			fileEntry.file(function(f) {
-				if(isFunc) {
+				if(typeCheck(callback) === "[object Function]") {
 					callback(f);
 				}
-			}, FSA.error);
-		}, FSA.error );
+			}, errorHandler);
+		}, errorHandler );
 	};
 	
 	FSA.getFiles = function(path,callback) {
-		var isFunc = (typeof callback == "function"),
-			dirReader = root.createReader();
+		var dirReader = root.createReader();
 		
 		dirReader.readEntries(function(files) {
 			for (var i = 0, len = files.length; i < len; i++) {
 				if(files[i].isFile) {
 					files[i].file(function(f) {
-						if(isFunc) {
+						if(typeCheck(callback) === "[object Function]") {
 							callback(f);
 						}
-					}, FSA.error);
+					}, errorHandler);
 				}
 			}
-		}, FSA.error);
+		}, errorHandler);
 	};
 	
 	FSA.readFile = function(name,type,callback) {
@@ -90,23 +90,21 @@ var FSA = FSA || {};
 					
 					readFile(file,type,callback);
 					
-				}, FSA.error);
-			}, FSA.error );
+				}, errorHandler);
+			}, errorHandler );
 		}
 	};
 	
 	FSA.createFile = function(name,callback) {
-		var isFunc = (typeof callback == "function");
-		
 		root.getFile(name, {create:true,exclusive:true}, function(){ 
-			if(isFunc) {
+			if(typeCheck(callback) === "[object Function]") {
 				callback(name);
 			}
-		}, FSA.error );
+		}, errorHandler );
 	};
 	
 	FSA.createDirectory = function(name) {
-		root.getDirectory(name, {create: true,exclusive:true}, function(){ console.log(name + " directory created"); }, FSA.error);
+		root.getDirectory(name, {create: true,exclusive:true}, function(){ console.log(name + " directory created"); }, errorHandler);
 	};
 	
 	FSA.removeDirectory = function(path) {
@@ -114,11 +112,42 @@ var FSA = FSA || {};
 			console.log(dir);
 			dir.removeRecursively(function() {
 				console.log("'" + path + "' and all its contents was succesfully removed");
-			}, FSA.error);
-		}, FSA.error);
+			}, errorHandler);
+		}, errorHandler);
 	};
 	
-	FSA.error = function(e) {
+	// Internal use, no need to expose these funtions
+	function readFile(file,type,callback) {
+		var validReadType = /^(text|binary|arraybuffer|dataurl)$/i,
+			readAs = "text";
+		
+		if(validReadType.test(type)) {
+			readAs = type.toLowerCase();
+		}
+		
+		fileReader = new FileReader();
+		fileReader.onloadend = function(e) { callback(e.target.result); };
+		fileReader.onerror = function(e) { errorHandler(e); };
+		
+		switch(type) {
+			case "dataurl":
+				fileReader.readAsDataURL(file);
+				break;
+			case "arraybuffer":
+				fileReader.readAsArrayBuffer(file);
+				break;
+			case "binary":
+				fileReader.readAsBinaryString(file);
+				break;
+			default:
+				fileReader.readAsText(file);
+		}
+		
+	}
+	function typeCheck(o) {
+		return Object.prototype.toString.call(o);
+	}
+	function errorHandler(e) {
 		switch(e.code) {
 			case 1:
 				console.log("File or directory doesn't exist");
@@ -136,35 +165,5 @@ var FSA = FSA || {};
 			default:
 				console.log(e);
 		}
-	};
-	
-	// Internal use only
-	function readFile(file,type,callback) {
-		var validReadType = /^(text|binary|arraybuffer|dataurl)$/i;
-			readAs = "text",
-			that = this;
-		
-		if(validReadType.test(type)) {
-			readAs = type.toLowerCase();
-		}
-		
-		fileReader = new FileReader();
-		fileReader.onloadend = function(e) { callback(e.target.result) };
-		fileReader.onerror = function(e) { FSA.error(e); };
-		
-		switch(type) {
-			case "dataurl":
-				fileReader.readAsDataURL(file);
-				break;
-			case "arraybuffer":
-				fileReader.readAsArrayBuffer(file);
-				break;
-			case "binary":
-				fileReader.readAsBinaryString(file);
-				break;
-			default:
-				fileReader.readAsText(file);
-		}
-		
 	}
 })(window,document);
