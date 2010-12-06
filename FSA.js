@@ -4,7 +4,7 @@
  *
  * Copyright (c) 2010 Ryan Seddon 
  * Dual-licensed under the BSD and MIT licenses.
- * http://thecssninja.com/license.txt
+ * http://thecssninja.com/demo/license.txt
  */
  
 var FSA = FSA || {};
